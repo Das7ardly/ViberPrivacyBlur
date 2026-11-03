@@ -1,0 +1,26 @@
+# Build output (these go to GitHub Releases as attachments, not the repo)
+/dist/
+/build_nuitka/
+/build/
+/installer/*.exe
+/installer/*.zip
+/installer/*.7z
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# PyInstaller/Nuitka leftovers
+*.spec
+*.build/
+*.dist/
+*.onefile-build/
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
