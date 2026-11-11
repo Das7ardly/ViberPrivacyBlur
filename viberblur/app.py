@@ -2,8 +2,9 @@
 
 Performance contract: while blur is OFF nothing runs but two event hooks (which
 only fire when Viber actually moves/closes). No timers spin in the background.
-The only timers are short, single-shot debouncers used *during* a blur, and a
-slow re-scan that runs *only* while Viber is not running.
+The only timers are short, single-shot debouncers used *during* a blur, a
+once-a-second frost refresh that runs *only* while a chat-only blur is showing,
+and a slow re-scan that runs *only* while Viber is not running.
 """
 
 import ctypes
@@ -73,6 +74,12 @@ class Controller:
         self._rescan = QTimer()
         self._rescan.setInterval(2000)
         self._rescan.timeout.connect(self._rescan_tick)
+        # Chat-only blur leaves the chat list and message box usable, so the
+        # chat underneath changes while blurred; keep the frost in step with it.
+        self._live = QTimer()
+        self._live.setInterval(1000)
+        self._live.timeout.connect(self._refresh_frost)
+        self._area_tip_shown = False
 
         # The hotkey lives on its own hidden window that never moves, hides, or
         # re-parents — so it keeps working no matter what Viber or the pill do
@@ -118,6 +125,8 @@ class Controller:
         self.widget.toggleRequested.connect(self.toggle_blur)
         self.widget.intensityChanged.connect(self._on_intensity)
         self.widget.minimizeRequested.connect(self._minimize_widget)
+        self.overlay.regionEdited.connect(self._on_region_edited)
+        self.overlay.adjustFinished.connect(lambda: self.overlay.set_adjusting(False))
 
     # --- blur control ------------------------------------------------------
     def toggle_blur(self):
@@ -148,6 +157,8 @@ class Controller:
             self._render_overlay()
 
     def clear_blur(self):
+        self._live.stop()
+        self.overlay.set_adjusting(False)
         self.overlay.hide()
         self.blurred = False
         self.widget.set_state(False, viber_found=self.tracker.is_alive())
@@ -173,7 +184,7 @@ class Controller:
         if img is None:
             return
         self.overlay.set_pixmap(blur_to_pixmap(img, self.settings.intensity))
-        self.overlay.place(left, top, w, h)
+        self._place_overlay()
         self.overlay.show()
         self.overlay.apply_native_styles(self.tracker.hwnd)
         self.overlay.raise_above(self.tracker.hwnd)
@@ -181,6 +192,92 @@ class Controller:
         # Keep the pill above the frost so the controls stay reachable.
         if self.settings.widget_visible and not self.tracker.is_minimized():
             self.widget.raise_self()
+        if self.settings.blur_area == "chat":
+            self._live.start()
+            if not self.settings.region_set and not self._area_tip_shown and self._tray:
+                self._area_tip_shown = True
+                self._tray.showMessage(
+                    APP_NAME,
+                    "Blurring the chat only. If the edges don't line up, "
+                    "right-click the tray icon and pick \"Adjust blur area\".",
+                    QSystemTrayIcon.Information,
+                    6000,
+                )
+
+    # --- blur area ---------------------------------------------------------
+    def _blur_rect(self, win):
+        """Screen rect the frost covers: the whole Viber window, or only the
+        conversation pane (chat list and message box left clear)."""
+        s = self.settings
+        if s.blur_area != "chat":
+            return win
+        client = self.tracker.client_rect() or win
+        if s.region_set:
+            l, t, r, b = s.region_left, s.region_top, s.region_right, s.region_bottom
+        else:
+            # Starting guess for Viber's stock layout; "Adjust blur area" fits it.
+            l, r, b = int(376 * self.scale), 0, int(60 * self.scale)
+            # Skip the title bar if Viber draws its own inside the client area.
+            t = 0 if client[1] - win[1] > 4 else int(32 * self.scale)
+        x, y = client[0] + l, client[1] + t
+        w, h = client[2] - l - r, client[3] - t - b
+        m = int(120 * self.scale)
+        if w < m or h < m:
+            return win  # Viber too small for the saved area: cover it all
+        return x, y, w, h
+
+    def _place_overlay(self):
+        win = self.tracker.rect()
+        if not win:
+            return
+        x, y, w, h = self._blur_rect(win)
+        self.overlay.place(
+            x, y, w, h, origin=(win[0], win[1]), bounds=self.tracker.client_rect()
+        )
+
+    def _refresh_frost(self):
+        """Re-frost from Viber's own pixels (PrintWindow sees under the panel).
+        Never hides the panel; if Viber can't be read this way, stay static."""
+        if not self.blurred or not self.overlay.isVisible() or self.tracker.is_minimized():
+            self._live.stop()
+            return
+        img = capture_window(self.tracker.hwnd)
+        if img is None:
+            self._live.stop()
+            return
+        self.overlay.set_pixmap(blur_to_pixmap(img, self.settings.intensity))
+
+    def _set_chat_only(self, on):
+        self.settings.blur_area = "chat" if on else "window"
+        self._save_timer.start(200)
+        if not on:
+            self.overlay.set_adjusting(False)
+            self._live.stop()
+        if self.blurred and self.overlay.isVisible():
+            self._place_overlay()
+            if on:
+                self._live.start()
+
+    def start_adjust(self):
+        """Blur the chat and let the user drag the panel's edges into place."""
+        if self.settings.blur_area != "chat":
+            self._act_chat.setChecked(True)  # -> _set_chat_only(True)
+        if not self.blurred:
+            self.apply_blur()
+        if self.overlay.isVisible():
+            self.overlay.set_adjusting(True)
+
+    def _on_region_edited(self, x, y, w, h):
+        client = self.tracker.client_rect()
+        if not client:
+            return
+        s = self.settings
+        s.region_left = max(0, x - client[0])
+        s.region_top = max(0, y - client[1])
+        s.region_right = max(0, client[0] + client[2] - (x + w))
+        s.region_bottom = max(0, client[1] + client[3] - (y + h))
+        s.region_set = True
+        self._save_timer.start(200)
 
     def _recapture(self):
         """Refresh the frosted image in place (after resize or intensity change)."""
@@ -199,13 +296,14 @@ class Controller:
             return
         left, top, w, h = r
         if self.blurred:
-            self.overlay.place(left, top, w, h)  # move with Viber immediately
+            self._place_overlay()  # move with Viber immediately
             if (w, h) != self._last_size:
                 self._last_size = (w, h)
                 self._recap_timer.start(120)  # debounce recapture during resize
         self._dock_widget_position()  # the pill sticks to Viber's corner
 
     def _on_minimized(self):
+        self._live.stop()
         self.overlay.hide()
         self.widget.hide()  # the pill goes away with Viber
 
@@ -304,8 +402,17 @@ class Controller:
         self._act_toggle.triggered.connect(self.toggle_blur)
         self._act_widget = QAction("Hide controls", menu)
         self._act_widget.triggered.connect(self._toggle_widget)
+        self._act_chat = QAction("Blur chat only (keep chat list and typing box)", menu)
+        self._act_chat.setCheckable(True)
+        self._act_chat.setChecked(self.settings.blur_area == "chat")
+        self._act_chat.toggled.connect(self._set_chat_only)
+        self._act_adjust = QAction("Adjust blur area…", menu)
+        self._act_adjust.triggered.connect(self.start_adjust)
         menu.addAction(self._act_toggle)
         menu.addAction(self._act_widget)
+        menu.addSeparator()
+        menu.addAction(self._act_chat)
+        menu.addAction(self._act_adjust)
         if autostart.available():
             menu.addSeparator()
             self._act_autostart = QAction("Start with Windows", menu)

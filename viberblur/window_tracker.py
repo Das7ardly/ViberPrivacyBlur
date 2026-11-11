@@ -151,6 +151,16 @@ class ViberTracker(QObject):
         except Exception:
             return None
 
+    def client_rect(self):
+        """Viber's client area (window minus title bar and frame) on screen,
+        as (left, top, width, height) in physical pixels, or None."""
+        try:
+            l, t, r, b = win32gui.GetClientRect(self.hwnd)
+            x, y = win32gui.ClientToScreen(self.hwnd, (0, 0))
+            return x, y, r - l, b - t
+        except Exception:
+            return None
+
     # --- hook callback -----------------------------------------------------
     def _on_event(self, hook, event, hwnd, id_object, id_child, thread, ts):
         if hwnd != self.hwnd or id_object != OBJID_WINDOW:

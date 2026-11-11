@@ -18,8 +18,8 @@ python -m nuitka `
   --company-name="Viber Privacy Blur" `
   --product-name="Viber Privacy Blur" `
   --file-description="Viber Privacy Blur - privacy overlay for Viber Desktop" `
-  --file-version=1.0.0.0 `
-  --product-version=1.0.0.0 `
+  --file-version=1.1.0.0 `
+  --product-version=1.1.0.0 `
   --copyright="Free utility" `
   --output-dir="$proj\build_nuitka" `
   --output-filename=ViberPrivacyBlur.exe `

@@ -2,7 +2,9 @@
 ; Build:  ISCC.exe installer.iss   (produces installer\ViberPrivacyBlur-Setup-<ver>.exe)
 
 #define AppName "Viber Privacy Blur"
-#define AppVersion "1.0.0"
+#ifndef AppVersion
+  #define AppVersion "1.1.0"
+#endif
 #define AppExe "ViberPrivacyBlur.exe"
 #define Publisher "Viber Privacy Blur"
 #define ProjDir SourcePath
