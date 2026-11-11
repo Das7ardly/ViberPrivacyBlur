@@ -14,6 +14,12 @@ class Settings:
     widget_y: int = -1
     widget_visible: bool = True
     start_blurred: bool = False
+    blur_area: str = "chat"    # "chat" = conversation pane only, "window" = all of Viber
+    region_set: bool = False   # True once the chat area has been fitted by hand
+    region_left: int = 0       # chat area as insets (px) from Viber's client area
+    region_top: int = 0
+    region_right: int = 0
+    region_bottom: int = 0
 
 
 def load_settings() -> "Settings":
