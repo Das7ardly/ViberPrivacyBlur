@@ -2,4 +2,4 @@
 
 APP_NAME = "Viber Privacy Blur"
 APP_SLUG = "ViberPrivacyBlur"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
