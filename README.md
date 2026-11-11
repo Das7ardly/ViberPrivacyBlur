@@ -6,8 +6,17 @@ just places a blurred panel over the Viber window.
 
 ## Running it
 
-Double-click **`ViberPrivacyBlur.exe`** (in the `dist` folder). No installation
-and no Python needed. It starts quietly:
+Two downloads, same app:
+
+- **Installer** (`ViberPrivacyBlur-Setup-x.y.z.exe`): installs for your user,
+  adds Start Menu and optional desktop shortcuts, can start with Windows, and
+  uninstalls from Windows Settings. Settings live in
+  `%LOCALAPPDATA%\ViberPrivacyBlur`.
+- **Portable** (`ViberPrivacyBlur-Portable-x.y.z.zip`): unzip anywhere and run
+  `ViberPrivacyBlur.exe`. The `portable.txt` file in the folder makes the app
+  keep its settings in a `data` folder beside the exe.
+
+No Python needed. It starts quietly:
 
 - A small **control pill** docks to the **top-center of the Viber window**
   (Blur button + blur-intensity slider + a **–** button to hide the pill).
@@ -19,6 +28,8 @@ and no Python needed. It starts quietly:
 |---|---|
 | Blur / un-blur Viber | Press **Ctrl+Alt+B**, or click the pill, or double-click the tray icon |
 | Change how frosted it is | Drag the **Blur** slider on the pill |
+| Blur only the conversation, or the whole window | Tray → *Blur chat only* (toggle, on by default) |
+| Fit the blur to your chat pane | Tray → *Adjust blur area…*, drag the panel's edges, double-click to save |
 | Hide the pill (hotkey still works) | Click the **–** on the pill, or tray → *Hide controls* |
 | Show the pill again | Tray → *Show controls* |
 | Start automatically with Windows | Tray → *Start with Windows* (toggle) |
@@ -30,8 +41,13 @@ and no Python needed. It starts quietly:
   and **disappear when you minimize Viber**, returning when you restore it.
 - They sit **above Viber only** — not on top of your other apps. Switch to
   another app and they drop behind it; return to Viber and they're back.
-- While blurred, clicks on Viber are blocked, so a bystander can't read or poke
-  the chat.
+- With **Blur chat only** on, the frost covers the conversation (top bar, chat
+  header, messages) and leaves the chat list and the message box usable, so you
+  can switch chats and type while blurred. The frost refreshes about once a
+  second to follow what's underneath. The area is stored as distances from
+  Viber's edges, so it follows the window when you move or resize it; if you
+  resize Viber's chat list, run *Adjust blur area…* again.
+- With it off, the whole window is frosted and clicks on Viber are blocked.
 - Costs essentially **0% CPU when idle** (blur off): the only cost is a one-time
   capture + blur when you trigger it.
 
@@ -76,4 +92,8 @@ the exe, the whole folder, and the installer clean.
 
 - Source: `viberblur/` (pure-logic modules + Qt UI), entry point `main.py`.
 - Run from source: `python main.py` (needs `PySide6-Essentials`, `pywin32`, `pillow`).
-- Build the exe: `tools/build.ps1` (or see the PyInstaller command in that file).
+- Build the exe: `tools/build.ps1` (or see the PyInstaller command in that file),
+  or double-click `BUILD_EXE.bat`, which sets up the Python packages first.
+- `.github/workflows/build.yml` builds the installer and the portable zip on
+  every push (Actions tab → the run → Artifacts) and attaches them to a
+  GitHub Release when you push a tag like `v1.1.0`.
